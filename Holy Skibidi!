@@ -1,0 +1,923 @@
+repeat task.wait() until game:IsLoaded()
+
+-- // Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local lp = Players.LocalPlayer
+
+-- // Globals
+local connections, mainConns, unloaded = {}, {}, false
+
+-- // Load the UI library that works
+local splib = loadstring(game:HttpGet("https://raw.githubusercontent.com/vgsfdsd/thisosmebullshit/refs/heads/main/booo"))()
+
+local Window = splib:MakeWindow({
+    Name = "100% Skidded Die of Death HUB",
+    HidePremium = false,
+    SaveConfig = true,
+    Setting = true,
+    ToggleIcon = "rbxassetid://74080236846982",
+    ConfigFolder = "DieOfDeathSkiddedConfigs",
+    CloseCallback = true
+})
+
+------------------------------------------------------------
+-- PART 1: ESP Tab
+------------------------------------------------------------
+local ESPTab = Window:MakeTab({
+    Name = "ESP Settings",
+    Icon = "rbxassetid://4483345998"
+})
+
+local espConfigs = {
+    Survivor = {Enabled=true, Name=true, HP=true, Fill=true, Outline=true, FillColor=Color3.fromRGB(0,255,0), OutlineColor=Color3.fromRGB(0,255,0), FillTransparency=0.5, OutlineTransparency=0},
+    Killer   = {Enabled=true, Name=true, HP=true, Fill=true, Outline=true, FillColor=Color3.fromRGB(255,0,0), OutlineColor=Color3.fromRGB(255,0,0), FillTransparency=0.5, OutlineTransparency=0},
+    Ghost    = {Enabled=true, Name=true, HP=true, Fill=true, Outline=true, FillColor=Color3.fromRGB(0,255,255), OutlineColor=Color3.fromRGB(0,255,255), FillTransparency=0.5, OutlineTransparency=0},
+}
+
+local Storage = CoreGui:FindFirstChild("Highlight_Storage") or Instance.new("Folder")
+Storage.Name = "Highlight_Storage"
+Storage.Parent = CoreGui
+
+-- Fixed ESP functions
+local function setupHealthDisplay(plr, humanoid, healthLabel, cfg)
+    local function update()
+        if cfg.HP and cfg.Enabled then
+            healthLabel.Visible = true
+            healthLabel.Text = ("HP: %d/%d"):format(math.floor(humanoid.Health), humanoid.MaxHealth)
+        else
+            healthLabel.Visible = false
+        end
+    end
+    update()
+    connections[plr] = connections[plr] or {}
+    if connections[plr].HealthChanged then
+        pcall(function() connections[plr].HealthChanged:Disconnect() end)
+    end
+    connections[plr].HealthChanged = humanoid.HealthChanged:Connect(update)
+end
+
+local function createOrUpdateESP(plr, char)
+    if not char or not char.Parent or plr == lp or unloaded then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local team = char.Parent and char.Parent.Name
+    local cfg = espConfigs[team]
+    if not cfg or not humanoid then return end
+
+    local highlight = Storage:FindFirstChild(plr.Name.."_Highlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = plr.Name.."_Highlight"
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = Storage
+    end
+    
+    highlight.Adornee = char
+    highlight.Enabled = cfg.Enabled
+    highlight.FillColor = cfg.FillColor
+    highlight.OutlineColor = cfg.OutlineColor
+    highlight.FillTransparency = (cfg.Fill and cfg.FillTransparency) or 1
+    highlight.OutlineTransparency = (cfg.Outline and cfg.OutlineTransparency) or 1
+
+    -- nametag creation
+    if hrp then
+        local nametag = Storage:FindFirstChild(plr.Name.."_Nametag")
+        if not nametag then
+            nametag = Instance.new("BillboardGui")
+            nametag.Name = plr.Name.."_Nametag"
+            nametag.Size = UDim2.new(0,120,0,40)
+            nametag.StudsOffset = Vector3.new(0,2.5,0)
+            nametag.AlwaysOnTop = true
+            nametag.Parent = Storage
+
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Name = "PlayerName"
+            nameLabel.Size = UDim2.new(1,0,0.5,0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = plr.Name
+            nameLabel.TextColor3 = cfg.FillColor
+            nameLabel.TextStrokeTransparency = 0
+            nameLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+            nameLabel.TextSize = 14
+            nameLabel.Font = Enum.Font.SourceSansBold
+            nameLabel.Parent = nametag
+
+            local healthLabel = Instance.new("TextLabel")
+            healthLabel.Name = "HealthLabel"
+            healthLabel.Size = UDim2.new(1,0,0.5,0)
+            healthLabel.Position = UDim2.new(0,0,0.5,0)
+            healthLabel.BackgroundTransparency = 1
+            healthLabel.TextColor3 = Color3.fromRGB(255,255,255)
+            healthLabel.TextStrokeTransparency = 0
+            healthLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+            healthLabel.TextSize = 12
+            healthLabel.Font = Enum.Font.SourceSans
+            healthLabel.Parent = nametag
+        end
+        
+        nametag.Adornee = hrp
+        nametag.Enabled = cfg.Enabled
+        
+        local nameLabel = nametag:FindFirstChild("PlayerName")
+        local healthLabel = nametag:FindFirstChild("HealthLabel")
+        
+        if nameLabel then 
+            nameLabel.Visible = cfg.Enabled and cfg.Name
+            nameLabel.TextColor3 = cfg.FillColor
+        end
+        
+        if healthLabel then 
+            setupHealthDisplay(plr, humanoid, healthLabel, cfg) 
+        end
+    end
+end
+
+local function onPlayerAdded(plr)
+    if plr == lp then return end
+    connections[plr] = connections[plr] or {}
+    connections[plr].CharacterAdded = plr.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        createOrUpdateESP(plr, char)
+    end)
+    if plr.Character then createOrUpdateESP(plr, plr.Character) end
+end
+
+local function onPlayerRemoving(plr)
+    for _, suffix in ipairs({"_Highlight","_Nametag"}) do
+        local obj = Storage:FindFirstChild(plr.Name..suffix)
+        if obj then pcall(function() obj:Destroy() end) end
+    end
+    if connections[plr] then
+        for _, conn in pairs(connections[plr]) do
+            if typeof(conn) == "RBXScriptConnection" then
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+        connections[plr] = nil
+    end
+end
+
+-- ESP Controls
+for teamName, cfg in pairs(espConfigs) do
+    ESPTab:AddToggle({
+        Name = teamName .. " ESP",
+        Default = cfg.Enabled,
+        Flag = teamName .. "ESPEnabled",
+        Save = true,
+        Callback = function(Value)
+            cfg.Enabled = Value
+        end
+    })
+    
+    ESPTab:AddToggle({
+        Name = teamName .. " Show Name",
+        Default = cfg.Name,
+        Flag = teamName .. "ShowName",
+        Save = true,
+        Callback = function(Value)
+            cfg.Name = Value
+        end
+    })
+    
+    ESPTab:AddToggle({
+        Name = teamName .. " Show HP",
+        Default = cfg.HP,
+        Flag = teamName .. "ShowHP",
+        Save = true,
+        Callback = function(Value)
+            cfg.HP = Value
+        end
+    })
+    
+    ESPTab:AddToggle({
+        Name = teamName .. " Show Fill",
+        Default = cfg.Fill,
+        Flag = teamName .. "ShowFill",
+        Save = true,
+        Callback = function(Value)
+            cfg.Fill = Value
+        end
+    })
+    
+    ESPTab:AddSlider({
+        Name = teamName .. " Fill Transparency",
+        Min = 0,
+        Max = 1,
+        Default = cfg.FillTransparency,
+        Increment = 0.1,
+        ValueName = "",
+        Flag = teamName .. "FillTransparency",
+        Save = true,
+        Callback = function(Value)
+            cfg.FillTransparency = Value
+        end
+    })
+    
+    ESPTab:AddToggle({
+        Name = teamName .. " Show Outline",
+        Default = cfg.Outline,
+        Flag = teamName .. "ShowOutline",
+        Save = true,
+        Callback = function(Value)
+            cfg.Outline = Value
+        end
+    })
+    
+    ESPTab:AddSlider({
+        Name = teamName .. " Outline Transparency",
+        Min = 0,
+        Max = 1,
+        Default = cfg.OutlineTransparency,
+        Increment = 0.1,
+        ValueName = "",
+        Flag = teamName .. "OutlineTransparency",
+        Save = true,
+        Callback = function(Value)
+            cfg.OutlineTransparency = Value
+        end
+    })
+end
+
+------------------------------------------------------------
+-- PART 2: Speed Settings Tab
+------------------------------------------------------------
+local SpeedTab = Window:MakeTab({
+    Name = "Speed Settings",
+    Icon = "rbxassetid://4483345998"
+})
+
+local character = lp.Character or lp.CharacterAdded:Wait()
+if character:GetAttribute("WalkSpeed") == nil then character:SetAttribute("WalkSpeed",10) end
+if character:GetAttribute("SprintSpeed") == nil then character:SetAttribute("SprintSpeed",27) end
+
+local walkSpeedValue = character:GetAttribute("WalkSpeed")
+local sprintSpeedValue = character:GetAttribute("SprintSpeed")
+local walkSpeedEnabled = false
+local sprintEnabled = false
+
+-- Max Stamina controls
+local keepStaminaEnabled = true
+local customStamina = 100
+local defaultStamina = (lp.Character or lp.CharacterAdded:Wait()):GetAttribute("MaxStamina") or 100
+
+SpeedTab:AddSlider({
+    Name = "WalkSpeed",
+    Min = 8,
+    Max = 200,
+    Default = walkSpeedValue,
+    Increment = 1,
+    ValueName = "studs",
+    Flag = "WalkSpeedSlider",
+    Save = true,
+    Callback = function(Value)
+        walkSpeedValue = Value
+    end
+})
+
+SpeedTab:AddToggle({
+    Name = "Enable WalkSpeed",
+    Default = walkSpeedEnabled,
+    Flag = "WalkSpeedEnabled",
+    Save = true,
+    Callback = function(Value)
+        walkSpeedEnabled = Value
+        if not Value then
+            character:SetAttribute("WalkSpeed", 10)
+        end
+    end
+})
+
+SpeedTab:AddSlider({
+    Name = "SprintSpeed",
+    Min = 16,
+    Max = 300,
+    Default = sprintSpeedValue,
+    Increment = 1,
+    ValueName = "studs",
+    Flag = "SprintSpeedSlider",
+    Save = true,
+    Callback = function(Value)
+        sprintSpeedValue = Value
+    end
+})
+
+SpeedTab:AddToggle({
+    Name = "Enable Sprint",
+    Default = sprintEnabled,
+    Flag = "SprintEnabled",
+    Save = true,
+    Callback = function(Value)
+        sprintEnabled = Value
+        if not Value then
+            character:SetAttribute("SprintSpeed", 27)
+        end
+    end
+})
+
+-- Max Stamina controls
+SpeedTab:AddToggle({
+    Name = "Enable Custom MaxStamina",
+    Default = keepStaminaEnabled,
+    Flag = "CustomStaminaEnabled",
+    Save = true,
+    Callback = function(Value)
+        keepStaminaEnabled = Value
+        local ch = lp.Character
+        if not ch then return end
+        if not Value then
+            ch:SetAttribute("MaxStamina", defaultStamina)
+        else
+            ch:SetAttribute("MaxStamina", customStamina)
+        end
+    end
+})
+
+SpeedTab:AddTextbox({
+    Name = "Custom MaxStamina Value",
+    Default = "100",
+    TextDisappear = false,
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num and num >= 0 and num <= 10000 then
+            customStamina = num
+            local ch = lp.Character
+            if keepStaminaEnabled and ch then
+                ch:SetAttribute("MaxStamina", customStamina)
+            end
+        end
+    end
+})
+
+------------------------------------------------------------
+-- PART 3: Auto Block Tab
+------------------------------------------------------------
+local CombatTab = Window:MakeTab({
+    Name = "Auto Block",
+    Icon = "rbxassetid://4483345998"
+})
+
+local autoBlockEnabled = false
+local blockDistance = 15
+local useAbilityRF = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteFunctions"):WaitForChild("UseAbility")
+
+CombatTab:AddToggle({
+    Name = "Enable Auto Block",
+    Default = autoBlockEnabled,
+    Flag = "AutoBlockEnabled",
+    Save = true,
+    Callback = function(Value)
+        autoBlockEnabled = Value
+    end
+})
+
+CombatTab:AddSlider({
+    Name = "Block Distance",
+    Min = 5,
+    Max = 50,
+    Default = blockDistance,
+    Increment = 1,
+    ValueName = "studs",
+    Flag = "BlockDistanceSlider",
+    Save = true,
+    Callback = function(Value)
+        blockDistance = Value
+    end
+})
+
+local blockLogLabel = CombatTab:AddLabel("Block Log: Nothing")
+
+------------------------------------------------------------
+-- PART 4: Skills & Selector Tab (WITH SKILL GUI ADDED)
+------------------------------------------------------------
+local SkillsTab = Window:MakeTab({
+    Name = "Skills & Selector",
+    Icon = "rbxassetid://4483345998"
+})
+
+local skillList = {"Revolver","Punch","Block","Caretaker","Hotdog","Taunt","Cloak","Dash","Banana","BonusPad","Adrenaline"}
+local selectedSkill1, selectedSkill2 = "Revolver", "Caretaker"
+
+-- Skill Selector
+SkillsTab:AddDropdown({
+    Name = "Select Skill 1",
+    Default = selectedSkill1,
+    Options = skillList,
+    Flag = "Skill1Dropdown",
+    Save = true,
+    Callback = function(Value)
+        selectedSkill1 = Value
+    end
+})
+
+SkillsTab:AddDropdown({
+    Name = "Select Skill 2",
+    Default = selectedSkill2,
+    Options = skillList,
+    Flag = "Skill2Dropdown",
+    Save = true,
+    Callback = function(Value)
+        selectedSkill2 = Value
+    end
+})
+
+SkillsTab:AddButton({
+    Name = "Select Skills",
+    Callback = function()
+        local abilitySelection = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteEvents"):WaitForChild("AbilitySelection")
+        abilitySelection:FireServer({selectedSkill1, selectedSkill2})
+        blockLogLabel:Set("Skills Selected: " .. selectedSkill1 .. " & " .. selectedSkill2)
+    end
+})
+
+-- Skill GUI (Draggable Buttons)
+local SkillsModule = require(ReplicatedStorage.ClientModules:WaitForChild("AbilityConfig"))
+local guiStorage = lp:FindFirstChild("SkillScreenGui") or Instance.new("ScreenGui")
+guiStorage.Name = "SkillScreenGui"
+guiStorage.ResetOnSpawn = false
+guiStorage.IgnoreGuiInset = true
+guiStorage.Parent = lp:WaitForChild("PlayerGui")
+
+local buttonConfigs = {} -- [skillName] = {size,pos}
+local lastUsed = {}      -- [skillName] = os.clock()
+
+local function makeDraggable(frame, skillName)
+    local dragging, dragStart, startPos = false, Vector2.new(), frame.Position
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y)
+    end
+    local function onInputBegan(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging=true; dragStart=input.Position; startPos=frame.Position
+            input.Changed:Connect(function() if input.UserInputState==Enum.UserInputState.End then dragging=false; buttonConfigs[skillName].pos={frame.Position.X.Offset,frame.Position.Y.Offset} end end)
+        end
+    end
+    local function onInputChanged(input)
+        if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then update(input) end
+    end
+    frame.InputBegan:Connect(onInputBegan)
+    frame.InputChanged:Connect(onInputChanged)
+    for _, child in ipairs(frame:GetDescendants()) do
+        if child:IsA("GuiObject") then
+            child.InputBegan:Connect(onInputBegan)
+            child.InputChanged:Connect(onInputChanged)
+        end
+    end
+end
+
+local function createSkillButton(skillName)
+    local skillData = SkillsModule[skillName]
+    if not skillData then return end
+    local cfg = buttonConfigs[skillName] or {size=46,pos={100,100}}
+    buttonConfigs[skillName] = cfg
+    local old = guiStorage:FindFirstChild(skillName.."_Btn")
+    if old then old:Destroy() end
+
+    local btnFrame = Instance.new("Frame")
+    btnFrame.Name = skillName.."_Btn"
+    btnFrame.Size = UDim2.new(0,cfg.size,0,cfg.size)
+    btnFrame.Position = UDim2.new(0,cfg.pos[1],0,cfg.pos[2])
+    btnFrame.BackgroundTransparency = 1
+    btnFrame.Parent = guiStorage
+    
+    local border = Instance.new("UIStroke")
+    border.Thickness = 2
+    border.Color = Color3.fromRGB(198,198,198)
+    border.Parent = btnFrame
+    
+    local innerFrame = Instance.new("Frame")
+    innerFrame.Size = UDim2.new(1,0,1,0)
+    innerFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    innerFrame.BackgroundTransparency = 0.6
+    innerFrame.BorderSizePixel = 0
+    innerFrame.Parent = btnFrame
+    
+    local icon = Instance.new("ImageLabel")
+    icon.Size = UDim2.new(0.9,0,0.9,0)
+    icon.Position = UDim2.new(0.5,0,0.5,0)
+    icon.AnchorPoint = Vector2.new(0.5,0.5)
+    icon.BackgroundTransparency = 1
+    icon.Image = skillData.Icon or ""
+    icon.ScaleType = Enum.ScaleType.Fit
+    icon.Parent = innerFrame
+    
+    local cooldownOverlay = Instance.new("Frame")
+    cooldownOverlay.Size = UDim2.new(1,0,1,0)
+    cooldownOverlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    cooldownOverlay.BackgroundTransparency = 0.6
+    cooldownOverlay.BorderSizePixel = 0
+    cooldownOverlay.Visible = false
+    cooldownOverlay.Parent = innerFrame
+    
+    local cdLabel = Instance.new("TextLabel")
+    cdLabel.Size = UDim2.new(1,0,1,0)
+    cdLabel.BackgroundTransparency = 1
+    cdLabel.TextColor3 = Color3.fromRGB(255,255,255)
+    cdLabel.TextScaled = true
+    cdLabel.Font = Enum.Font.GothamBold
+    cdLabel.Visible = false
+    cdLabel.Parent = cooldownOverlay
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1,0,1,0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.Parent = innerFrame
+
+    button.MouseButton1Click:Connect(function()
+        local cooldown = tonumber(skillData.Cooldown) or 1
+        local now = os.clock()
+        if not lastUsed[skillName] or now-lastUsed[skillName]>=cooldown then
+            lastUsed[skillName] = now
+            local remoteFunc = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteFunctions"):WaitForChild("UseAbility")
+            pcall(function() remoteFunc:InvokeServer(skillName) end)
+            cooldownOverlay.Visible = true
+            cdLabel.Visible = true
+            task.spawn(function()
+                local t = cooldown
+                while t > 0 do
+                    cdLabel.Text = tostring(math.ceil(t))
+                    task.wait(1)
+                    t = t - 1
+                end
+                cooldownOverlay.Visible = false
+                cdLabel.Visible = false
+            end)
+        end
+    end)
+    makeDraggable(btnFrame, skillName)
+end
+
+local function removeSkillButton(skillName)
+    local old = guiStorage:FindFirstChild(skillName.."_Btn")
+    if old then old:Destroy() end
+end
+
+-- Create skill GUI toggles
+for _, skillName in ipairs(skillList) do
+    local enabled = false
+    SkillsTab:AddToggle({
+        Name = "Enable " .. skillName .. " Button",
+        Default = false,
+        Flag = skillName .. "ButtonEnabled",
+        Save = true,
+        Callback = function(Value)
+            enabled = Value
+            if Value then 
+                createSkillButton(skillName) 
+            else 
+                removeSkillButton(skillName) 
+            end
+        end
+    })
+    
+    SkillsTab:AddSlider({
+        Name = skillName .. " Button Size",
+        Min = 40,
+        Max = 120,
+        Default = 46,
+        Increment = 1,
+        ValueName = "pixels",
+        Flag = skillName .. "ButtonSize",
+        Save = true,
+        Callback = function(Value)
+            if not buttonConfigs[skillName] then 
+                buttonConfigs[skillName] = {size=Value,pos={100,100}} 
+            else 
+                buttonConfigs[skillName].size = Value 
+            end
+            if enabled then 
+                createSkillButton(skillName) 
+            end
+        end
+    })
+end
+
+------------------------------------------------------------
+-- PART 5: Gameplay Settings Tab
+------------------------------------------------------------
+local GameplayTab = Window:MakeTab({
+    Name = "Gameplay Settings",
+    Icon = "rbxassetid://4483345998"
+})
+
+local lockWSM = true
+GameplayTab:AddToggle({
+    Name = "Lock WalkSpeedModifier",
+    Default = lockWSM,
+    Flag = "LockWSM",
+    Save = true,
+    Callback = function(Value)
+        lockWSM = Value
+    end
+})
+
+-- função que aplica instant prompt em um objeto
+local function applyInstantPrompt(prompt)
+    if not prompt:IsA("ProximityPrompt") then return end
+    if instantPromptEnabled then
+        if prompt:GetAttribute("OriginalHoldDuration") == nil then
+            prompt:SetAttribute("OriginalHoldDuration", prompt.HoldDuration)
+        end
+        prompt.HoldDuration = 0
+    end
+end
+
+-- toggle
+GameplayTab:AddToggle({
+    Name = "Instant Prompt",
+    Default = instantPromptEnabled,
+    Flag = "InstantPromptEnabled",
+    Save = true,
+    Callback = function(Value)
+        instantPromptEnabled = Value
+        for _, prompt in ipairs(Workspace:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                if Value then
+                    applyInstantPrompt(prompt)
+                else
+                    local original = prompt:GetAttribute("OriginalHoldDuration")
+                    if original then
+                        prompt.HoldDuration = original
+                    end
+                end
+            end
+        end
+    end
+})
+
+-- Maybe i wont forget ts
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ProximityPrompt") then
+        task.wait()
+        applyInstantPrompt(obj)
+    end
+end)
+
+------------------------------------------------------------
+-- PART 6: LMS Changer Tab
+------------------------------------------------------------
+local LMSTab = Window:MakeTab({
+    Name = "LMS Changer",
+    Icon = "rbxassetid://4483345998"
+})
+
+LMSTab:AddLabel([[
+HOW TO USE UR MP3 FILES:
+]])
+
+LMSTab:AddLabel([[
+1. go to ur executor folder and select the workspace folder
+]])
+
+LMSTab:AddLabel([[
+2. look for a folder called 'DoDLms'
+]])
+
+LMSTab:AddLabel([[
+3. put your mp3 file in the 'DoDLms' folder and that's it! :D
+]])
+
+-- Config
+local lmsEnabled = false
+local selectedFile = nil
+local folderName = "DoDLms"
+
+-- toggle
+LMSTab:AddToggle({
+    Name = "Enable LMS Replacer",
+    Default = false,
+    Flag = "LMSReplacerEnabled",
+    Save = true,
+    Callback = function(Value)
+        lmsEnabled = Value
+        if Value then
+            -- reapply
+            local lmss = ReplicatedStorage:FindFirstChild("Sounds")
+            if lmss then
+                lmss = lmss:FindFirstChild("Songs")
+                if lmss then
+                    lmss = lmss:FindFirstChild("LMSSongs")
+                    if lmss then
+                        for _, obj in ipairs(lmss:GetDescendants()) do
+                            if obj:IsA("Sound") then
+                                handleSound(obj)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+})
+
+-- detect mp3s
+local files = {}
+if isfolder and makefolder and not isfolder(folderName) then
+    makefolder(folderName)
+end
+if listfiles then
+    for _, f in ipairs(listfiles(folderName)) do
+        if f:lower():match("%.mp3$") then
+            table.insert(files, f:match("[^/\\]+$")) -- only name
+        end
+    end
+end
+
+if #files == 0 then
+    LMSTab:AddLabel("No Files Found! :(")
+else
+    selectedFile = files[1]
+    LMSTab:AddDropdown({
+        Name = "Select MP3 File",
+        Default = selectedFile,
+        Options = files,
+        Flag = "LMSFileSelect",
+        Save = true,
+        Callback = function(Value)
+            selectedFile = Value
+        end
+    })
+end
+
+-- replace ids
+local targetSet = {
+    ["79377280659422"]=true,["81002247465483"]=true,["102327893551966"]=true,
+    ["94531030690227"]=true,["76946068570629"]=true,["134000197680004"]=true,
+    ["136759649269213"]=true,["93423414823200"]=true,["82014737665440"]=true,
+    ["78523210366533"]=true
+}
+
+local function extractId(soundId)
+    return tostring(soundId):match("(%d+)")
+end
+
+local function tryGetCustomAssetVariants(filename)
+    local tries = {
+        filename,
+        "./"..filename
+    }
+    for _, p in ipairs(tries) do
+        local ok, res = pcall(function() return getcustomasset(p) end)
+        if ok and res then return res end
+    end
+    return nil
+end
+
+function handleSound(sound)
+    if not lmsEnabled or not sound:IsA("Sound") then return end
+    local numeric = extractId(sound.SoundId)
+    if not numeric or not targetSet[numeric] or not selectedFile then return end
+    local asset = tryGetCustomAssetVariants(folderName.."/"..selectedFile)
+    if asset then
+        pcall(function() sound:Stop() end)
+        pcall(function() sound.SoundId = asset end)
+        pcall(function() sound.Volume = 1 end)
+        print("LMS Replacer: substituiu "..sound.Name.." por "..selectedFile)
+    end
+end
+
+-- Folder
+task.spawn(function()
+    local lmss = ReplicatedStorage:WaitForChild("Sounds",5)
+    if not lmss then return end
+    lmss = lmss:WaitForChild("Songs",5)
+    if not lmss then return end
+    lmss = lmss:WaitForChild("LMSSongs",5)
+    if not lmss then return end
+
+    -- Og sound
+    for _, obj in ipairs(lmss:GetDescendants()) do
+        if obj:IsA("Sound") then handleSound(obj) end
+    end
+    -- Mp3
+    lmss.DescendantAdded:Connect(function(obj)
+        if obj:IsA("Sound") then handleSound(obj) end
+    end)
+end)
+
+------------------------------------------------------------
+-- PART 7: Credits Tab
+------------------------------------------------------------
+
+local CreditsTab = Window:MakeTab({
+    Name = "Credits",
+    Icon = "rbxassetid://4483345998"
+})
+
+CreditsTab:AddLabel([[
+People I skidded from=
+]])
+
+CreditsTab:AddLabel([[
+@6day13 Skill GUI and Stamina stuff <3
+]])
+
+------------------------------------------------------------
+-- PART 8: Settings Tab
+------------------------------------------------------------
+
+local SettingsTab = Window:MakeTab({
+    Name = "Settings",
+    Icon = "rbxassetid://4483345998"
+})
+
+SettingsTab:AddButton({
+    Name = "Unload Script",
+    Callback = function()
+        if unloaded then return end
+        unloaded = true
+        
+        -- Cleanup ESP
+        if Storage then Storage:ClearAllChildren() end
+        
+        -- Cleanup Skill GUI
+        if guiStorage then guiStorage:Destroy() end
+        
+        -- Disconnect connections
+        for plr, conns in pairs(connections) do
+            for _, conn in pairs(conns) do
+                if typeof(conn) == "RBXScriptConnection" then
+                    pcall(function() conn:Disconnect() end)
+                end
+            end
+        end
+        
+        for _, conn in pairs(mainConns) do
+            if typeof(conn) == "RBXScriptConnection" then
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+        
+        print("Script unloaded successfully!")
+    end
+})
+
+------------------------------------------------------------
+-- Some Stuff, Ignore.
+------------------------------------------------------------
+mainConns.playersAdded = Players.PlayerAdded:Connect(onPlayerAdded)
+mainConns.playersRemoving = Players.PlayerRemoving:Connect(onPlayerRemoving)
+for _,v in ipairs(Players:GetPlayers()) do onPlayerAdded(v) end
+
+-- Auto Block Function
+local function doBlock(plr,dist)
+    if unloaded then return end
+    pcall(function() 
+        useAbilityRF:InvokeServer("Block") 
+        blockLogLabel:Set("Blocked "..plr.Name.." ("..math.floor(dist).." studs)")
+    end)
+end
+
+-- Main loop
+mainConns.renderStepped = RunService.RenderStepped:Connect(function()
+    if unloaded then return end
+    local char = lp.Character
+    if not char then return end
+    
+    -- Speed settings
+    if walkSpeedEnabled and char:GetAttribute("WalkSpeed") ~= walkSpeedValue then
+        char:SetAttribute("WalkSpeed", walkSpeedValue)
+    end
+    if sprintEnabled and char:GetAttribute("SprintSpeed") ~= sprintSpeedValue then
+        char:SetAttribute("SprintSpeed", sprintSpeedValue)
+    end
+    
+    -- Stamina settings
+    if keepStaminaEnabled and char then
+        if char:GetAttribute("MaxStamina") ~= customStamina then
+            char:SetAttribute("MaxStamina", customStamina)
+        end
+    end
+    
+    -- Auto Block
+    if autoBlockEnabled then
+        local myHRP = char:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        
+        for _,plr in ipairs(Players:GetPlayers()) do
+            if plr~=lp and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local teamName = plr.Character.Parent and plr.Character.Parent.Name
+                if teamName == "Killer" then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                    if dist <= blockDistance then 
+                        doBlock(plr,dist) 
+                    end
+                end
+            end
+        end
+    end
+    
+    -- ESP refresh
+    for _,v in ipairs(Players:GetPlayers()) do
+        if v ~= lp and v.Character then 
+            createOrUpdateESP(v, v.Character) 
+        end
+    end
+end)
+
+print("Enjoy My Skidded DoD Hub!")
