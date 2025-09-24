@@ -391,7 +391,7 @@ CombatTab:AddSlider({
 local blockLogLabel = CombatTab:AddLabel("Block Log: Nothing")
 
 ------------------------------------------------------------
--- PART 4: Skills & Selector Tab (WITH SKILL GUI ADDED)
+-- PART 4: Skills & Selector Tab
 ------------------------------------------------------------
 local SkillsTab = Window:MakeTab({
     Name = "Skills & Selector",
@@ -616,7 +616,7 @@ GameplayTab:AddToggle({
     end
 })
 
--- função que aplica instant prompt em um objeto
+-- thing that applies it
 local function applyInstantPrompt(prompt)
     if not prompt:IsA("ProximityPrompt") then return end
     if instantPromptEnabled then
@@ -777,7 +777,7 @@ function handleSound(sound)
         pcall(function() sound:Stop() end)
         pcall(function() sound.SoundId = asset end)
         pcall(function() sound.Volume = 1 end)
-        print("LMS Replacer: substituiu "..sound.Name.." por "..selectedFile)
+        print("LMS Replacer: replaced "..sound.Name.." to "..selectedFile)
     end
 end
 
