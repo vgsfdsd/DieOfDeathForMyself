@@ -394,7 +394,7 @@ local blockLogLabel = CombatTab:AddLabel("Block Log: Nothing")
 -- PART 4: Skills & Selector Tab
 ------------------------------------------------------------
 local SkillsTab = Window:MakeTab({
-    Name = "Skills & Selector",
+    Name = "Skills Thing",
     Icon = "rbxassetid://4483345998"
 })
 
@@ -601,7 +601,7 @@ end
 -- PART 5: Gameplay Settings Tab
 ------------------------------------------------------------
 local GameplayTab = Window:MakeTab({
-    Name = "Gameplay Settings",
+    Name = "Gameplay (beta)",
     Icon = "rbxassetid://4483345998"
 })
 
@@ -659,10 +659,10 @@ Workspace.DescendantAdded:Connect(function(obj)
 end)
 
 ------------------------------------------------------------
--- PART 6: LMS Changer Tab
+-- PART 6: Custom LMS
 ------------------------------------------------------------
 local LMSTab = Window:MakeTab({
-    Name = "LMS Changer",
+    Name = "Custom LMS",
     Icon = "rbxassetid://4483345998"
 })
 
@@ -689,7 +689,7 @@ local folderName = "DoDLms"
 
 -- toggle
 LMSTab:AddToggle({
-    Name = "Enable LMS Replacer",
+    Name = "Enable Custom LMS",
     Default = false,
     Flag = "LMSReplacerEnabled",
     Save = true,
